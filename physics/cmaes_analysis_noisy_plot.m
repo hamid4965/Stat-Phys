@@ -3,44 +3,53 @@
 clear all
 close all
 clc
-load cmaes_noise_canopy.mat
-%load cmaes_canopy_all.mat
-T=readtable('Spectrum.xlsx');
-colName = T.Properties.VariableNames;
-wave_tmp=colName(18:end);
-for i=1:size(wave_tmp,2)
-   a= wave_tmp(i);
-   canopy_wave(i)=str2num(erase(a{1},'x'));
-end
-Canopy_ref= table2array(T(:,18:end))';
+load cmaes_noise_plot.mat
 load RT_sim % This is sage leaf endmember send from Dar
 load RT_sim_bt % This is bitterbrush leaf endmember send from Dar
-load LRT_DASF.mat  % This is simulated by prospect model
-I=find(RT(:,1)<2400);
-w_leaf = RT(I,1);
-LS_sage=RT(I,2)+RT(I,3);
-LS_bt=RT_BT(I,2)+RT_BT(I,3);
+load LRT_DASF.mat 
+
+%load cmaes_canopy_all.mat
+T=readtable('Plot_Spectrum.xlsx');
+colName = T.Properties.VariableNames;
+wave_tmp=colName(15:end);
+for i=1:size(wave_tmp,2)
+   a= wave_tmp(i);
+   tmp1=erase(a{1},'x');
+  plot_wave(i)= str2num(strrep(tmp1,'_','.'));
+end
+plot_ref= table2array(T(:,15:end))';
+I=find(plot_wave>400 & plot_wave<2400);
+plot_ref_final = plot_ref(I,:);
+w_plot = plot_wave(I);
+w_leaf = RT(:,1);
+LS_sage=RT(:,2)+RT(:,3);
+LS_bt=RT_BT(:,2)+RT_BT(:,3);
+LS_knya = interp1(LRT(:,1),LRT,w_leaf,'spline');
+
+
 load('soilspectra.mat')
 load('soil_wave.txt')
 soil_ref=table2array(soilspectra(:,2:end))';
-soil_resampled = interp1(soil_wave,soil_ref,w_leaf,'spline');
-canopy_resampled = interp1(canopy_wave,Canopy_ref,w_leaf,'spline');
-LS_knya = interp1(LRT(:,1),LRT,w_leaf,'spline');
+tmp2=mean(soil_ref(:,1:13),2);
+soil_ref(:,16)=tmp2;
 
+soil_resampled = interp1(soil_wave,soil_ref,w_plot,'spline');
+leaf_sage_resampled = interp1(w_leaf,LS_sage,w_plot,'spline');
+leaf_bt_resampled = interp1(w_leaf,LS_bt,w_plot,'spline');
 soil_id=T.Soil_id;
 veg_type=T.VegType;
 ID=T.ID;
-C=cmaes_noise.C;
-R_est=cmaes_noise.R_est;
-P=cmaes_noise.P;
-CB=cmaes_noise.CB;
-flag=cmaes_noise.flag';
-S=cmaes_noise.S;
-year=T.Year;
+C=cmaes_noise_plot.C;
+R_est=cmaes_noise_plot.R_est;
+P=cmaes_noise_plot.P;
+CB=cmaes_noise_plot.CB;
+flag=cmaes_noise_plot.flag;
+S=cmaes_noise_plot.S;
 
-for i=1:size(canopy_resampled,2)
-  rms(i)=norm(canopy_resampled(:,i)-R_est(:,i));
-  rmse(i)=rms(i)/sqrt(size(canopy_resampled,1))
+
+for i=1:size(plot_ref_final,2)
+  rms(i)=norm(plot_ref_final(:,i)-R_est(:,i));
+  rmse(i)=rms(i)/sqrt(size(plot_ref_final,1))
 end 
 mean_rmse=mean(rmse);
 hist(rmse)
@@ -53,62 +62,63 @@ hist(rmse)
 % set(gcf,'color','w','Position', [250, 150,700,600]);
 %  set(gca,'FontSize',16)
 ID_sel = ID(logical(flag));
-C_sel=C(:,:,ID_sel);
+C_sel=C(:,:,ID_sel');
 S_sel=S(:,:,ID_sel);
-P_sel=P(:,ID_sel);
+P_sel=P(ID_sel,:);
 N_sel=T.PercentN(ID_sel);
-ShrubName_sel=T.ShrubName(ID_sel);
-SiteName_sel=T.SiteName(ID_sel);
-LAI_Sel=T.LAI(ID_sel);
+PlotName_sel=T.PlotName(ID_sel);
+LAI_Sel=T.LAI_plot_Inds(ID_sel);
 veg_type_sel=veg_type(ID_sel);
-Gap_sel=T.Gap(ID_sel);
-Height_sel=T.Height(ID_sel);
+%Gap_sel=T.Gap(ID_sel);
+Cover_sel=T.Cover(ID_sel);
 rmse_sel=rmse(ID_sel);
 R_est_sel=R_est(:,ID_sel);
 total_soil=R_est(:,ID_sel) - squeeze(C_sel(:,1,:));
-canopy_resampled_sel=canopy_resampled(:,ID_sel);
-soil_id_sel=soil_id(ID_sel);
-year_sel=year(ID_sel);
+plot_ref_final_sel=plot_ref_final(:,ID_sel);
+
 
 %% 
-conv=sum(flag);
-boxplot(P_sel','Labels',{'P_{LL}','P_{LS}','P_{SL}','i0'})
-title('Canopy')
+
+
+conv=sum(flag)
+boxplot(P_sel,'Labels',{'P_{LL}','P_{LS}','P_{SL}','i0'})
+title('Plot')
 ylabel('Probabilities')
  set(gcf,'color','w','Position', [250, 150,600,600]);
  set(gca,'FontSize',16,'linew',1.5)
- 
 %  title(['Estimated ; ' 'converged=' num2str(conv) ' ' 'not converged='...
 %      num2str(151-conv)])
-set(findobj(gca,'type','line'),'linew',1.5)
-ylabel('Probability');
-xlabel('Invariant parameters')
-ylim([0 1])
+ set(findobj(gca,'type','line'),'linew',1.5)
+ ylabel('Probability');
+ xlabel('Invariant parameters')
+ ylim([0 1])
+ 
+
 hold on
-title('Canopy')
-h1=plot(w_leaf,R_est_sel,'r');
+title('Plot')
+h1=plot(w_plot,plot_ref_final_sel,'r');
 box on
 set(gcf,'color','w','Position', [250, 150,600,600]);
  set(gca,'FontSize',12,'linew',1.5)
   xlim([350,2450])
   ylim([0 0.5])
-  legend(h1(1), 'total reflectance (measured)');
+  legend([h1(1)], 'total reflectance (measured)', 'Location','NorthWest');
 xlabel('Wavelength [nm]')
 ylabel('Reflectance')
-h2=plot(w_leaf,squeeze(C_sel(:,1,:)),'green');
-legend([h1(1), h2(1)], 'total reflectance (measured)', 'Canopy reflectance');
-h3=plot(w_leaf,squeeze(S_sel(:,1,:)),'blue');
-legend([h1(1), h2(1),h3(1)], 'total reflectance (measured)', 'Canopy reflectance',...
-    'soil contribution in CRB');
-h4=plot(w_leaf,total_soil,'k');
-legend([h1(1), h2(1),h3(1),h4(1)], 'total reflectance (measured)', 'Canopy reflectance',...
-    'soil contribution to CRB','total soil contribution');
- 
- for i=107:size(ID_sel,1)
+h2=plot(w_plot,squeeze(C_sel(:,1,:)),'green');
+legend([h1(1), h2(1)], 'total reflectance (measured)', 'canopy reflectance',...
+    'Location','NorthWest');
+h3=plot(w_plot,squeeze(S_sel(:,1,:)),'blue');
+legend([h1(1), h2(1),h3(1)], 'total reflectance (measured)', 'canopy reflectance',...
+    'soil contribution to CRB','Location','NorthWest');
+h4=plot(w_plot,total_soil,'k');
+legend([h1(1), h2(1),h3(1),h4(1)], 'total reflectance (measured)', 'canopy reflectance',...
+    'soil contribution to CRB','total soil contribution','Location','NorthWest');
+ for i=1:size(ID_sel,1)
  hold on
- h1=plot(w_leaf,canopy_resampled_sel(:,i),'r',w_leaf,R_est_sel(:,i),'b');
-h4=plot(w_leaf,soil_resampled(:,soil_id_sel(i)),'k--')
- h3=plot(w_leaf,C_sel(:,1,i),'green',w_leaf,S_sel(:,1,i),'k');
+ h1=plot(w_plot,plot_ref_final_sel(:,i),'r',w_plot,R_est_sel(:,i),'b');
+h4=plot(w_plot,soil_resampled(:,7),'k--')
+ h3=plot(w_plot,C_sel(:,1,i),'green',w_plot,S_sel(:,1,i),'k');
  
  set(h1,'LineWidth',2)
  set(h3,'LineWidth',2)
@@ -116,24 +126,24 @@ h4=plot(w_leaf,soil_resampled(:,soil_id_sel(i)),'k--')
  box on
  xlim([350,2450])
  ylim([0 0.7])
- xlabel('Wavelength[nm]')
+ xlabel('Wavelenght[nm]')
  ylabel('Reflectance')
  
  set(gcf,'color','w','Position', [250, 150,600,500]);
  set(gca,'FontSize',12,'LineWidth',1.5)
- %title(['LAI = ' num2str(LAI_Sel(i)) ';' 'rms = ' num2str(rms(i))...
-  %   ';' 'veg = ' SiteName_sel{i}])
- text(450,0.6,{'PLL:','PLS:','PSL:','i0:'}, 'FontSize', 12)
- text(620,0.6,{num2str(round(P_sel(:,i),2))}, 'FontSize', 12)
-  legend('Measured total canopy reflectance','Simulated total canopy reflectance',...
-       'Soil contribution to the total canopy reflectance','Refelectance component of CRB','Soil contribution to the reflectance of CRB')
+ title(['LAI = ' num2str(LAI_Sel(i)) ';' 'rms = ' num2str(rms(i))...
+     ';' 'veg = ' veg_type_sel{i}])
+ text(500,0.6,{'PLL:','PLS:','PSL:','i0:'}, 'FontSize', 12)
+ text(700,0.6,{num2str(round(P_sel(i,:)',2))}, 'FontSize', 12)
+  legend('Measured reflectance','Simulated reflectance',...
+       'Soil reflectance','Canopy refelectance','soil contribution to CRB')
 i
    pause
      close all
  end
  
  % plot the very CRB seperatley
- h1=plot(w_leaf,C_sel(:,1,1),'green',w_leaf,S_sel(:,1,1),'k');
+ h1=plot(w_plot,C_sel(:,1,1),'green',w_plot,S_sel(:,1,1),'k');
  legend('Canopy reflectance','Soil contribution to CRB')
  xlabel('Wavelenght[nm]')
  ylabel('Reflectance')
@@ -153,8 +163,8 @@ i
  for  i=1:size(ID_sel,1)
   
    %BRF = squeeze(C_sel(I_dasf,1,i)); % if not correcting for S
-    BRF = squeeze(C_sel(I_dasf,1,i))-S_ref_sel(I_dasf,i);
-   %BRF = canopy_resampled_sel(I_dasf,i); %if not correcting for soil
+   BRF = squeeze(C_sel(I_dasf,1,i))-S_ref_sel(I_dasf,i);
+   %BRF = plot_ref_final_sel(I_dasf,i); %if not correcting for soil
    if (strcmp(veg_type{i},'Sagebrush'))
    LS=LS_DASF_sage;
     else
@@ -176,11 +186,11 @@ LS_pnas=LS_DASF_kyna;
 [DASF_pnas(i),R2_pnas(i)]=DASF_fun(LS_pnas,BRF);
 %WC_all(:,i)=canopy_resampled_sel(:,i)/DASF(i);
 %WC_all(:,i)= C_sel(:,1,i)/DASF(i);
+WC_all_test(:,i)= BRF/DASF(i);
 WC_all(:,i)= (squeeze(C_sel(:,1,i))-S_ref_sel(:,i))/DASF(i);
  WC_all_pnas(:,i)= (squeeze(C_sel(:,1,i))-S_ref_sel(:,i))/DASF_pnas(i);
 
-  if (sum(WC_all(:,i)<0)>0 | sum(WC_all(:,i)>1)>0|R2(i)<0.95|DASF(i)<=0 |...
-          WC_all(300,i)<0.2)
+  if (sum(WC_all(:,i)<0)>0 | sum(WC_all(:,i)>1)>0|R2(i)<0.9|DASF(i)<=0)
       flag2(i)= 0;
   else
       flag2(i)=1;
@@ -195,7 +205,7 @@ WC_all(:,i)= (squeeze(C_sel(:,1,i))-S_ref_sel(:,i))/DASF(i);
  end
  
 
- %plot(DASF,DASF_pnas,'*')
+ plot(DASF,DASF_pnas,'*')
  %ylim([0 0.5])
  %xlim([0 0.5])
 %%
@@ -206,45 +216,37 @@ set(gcf,'color','w','Position', [250, 150,600,500]);
  xlabel('R2 values')
  ylabel('Frequency')
 
-plot(w_leaf,WC_all(:,logical(flag2)),'k')
-%title('Canopy')
-set(gcf,'color','w','Position', [250, 150,600,600]);
+plot(w_plot,WC_all(:,logical(flag2)))
+set(gcf,'color','w','Position', [250, 150,600,500]);
  set(gca,'FontSize',16)
- xlabel('Wavelength [nm]')
- ylabel('Canopy scattering')
- 
- 
-
+ xlabel('Wavelenght [nm]')
+ ylabel('Reflectance')
 
 DASF1=DASF(logical(flag2));
 boxplot(DASF1)
 
-ID1=ID_sel(logical(flag2));
-SiteName1=SiteName_sel(logical(flag2))
-shrubname1=ShrubName_sel(logical(flag2));
+PlotName1=PlotName_sel(logical(flag2));
 LAI1=LAI_Sel(logical(flag2));
-P1=P_sel(:,logical(flag2));
+P1=P_sel(logical(flag2),:);
 N1=N_sel(logical(flag2));
-Gap1=Gap_sel(logical(flag2));
+%Gap1=Gap_sel(logical(flag2));
 WC1=WC_all(:,logical(flag2));
-R1=canopy_resampled_sel(:,logical(flag2));
+R1=plot_ref_final_sel(:,logical(flag2));
 R_nosoil1=C_sel(:,1,logical(flag2));
-Height1=Height_sel(logical(flag2));
-
+Cover1=Cover_sel(logical(flag2));
 I_Good=find(N1~=-999);
-ID_final=ID1(I_Good);
 final_N=N1(I_Good);
-Gap_final=Gap1(I_Good);
+%Gap_final=Gap1(I_Good);
 LAI_final=LAI1(I_Good);
-Height_final=Height1(I_Good);
+Cover_final=Cover1(I_Good);
 WC_final=WC1(:,I_Good);
 R_final=R1(:,I_Good);
 R_nosoil_final=R_nosoil1(:,I_Good);
-P_final=P1(:,I_Good);
+P_final=P1(I_Good,:);
 DASF_final=DASF1(I_Good);
-shrubname_final=shrubname1(I_Good);
+Plotname_final=PlotName1(I_Good);
 
-I_NIR=find(w_leaf>800 & w_leaf<850);
+I_NIR=find(w_plot>800 & w_plot<850);
 WC_NIR= mean(WC_final(I_NIR,:),1);
 R_NIR=mean(R_final(I_NIR,:),1);
 R_nosoil_NIR=mean(R_nosoil_final(I_NIR,:,1));
@@ -261,30 +263,6 @@ text(1.8,0.7,['R2 =' ' ' num2str(R2_corr)])
 set(gcf,'color','w','Position', [250, 150,600,500]);
  set(gca,'FontSize',16)
  
- p1 = polyfit(final_N,R_NIR',1); 
-f = polyval(p1,final_N); 
-p2=fitlm(final_N,R_NIR);
-R2_corr=p2.Rsquared.Ordinary;
-plot(final_N,R_NIR,'o',final_N,f,'-');
-xlabel('N [g/100g]')
-ylabel('R_NIR (800-850 [nm])')
-text(1.8,0.7,['R2 =' ' ' num2str(R2_corr)])
-set(gcf,'color','w','Position', [250, 150,600,500]);
- set(gca,'FontSize',16)
- 
-p1 = polyfit(DASF_final,R_NIR,1); 
-f = polyval(p1,DASF_final); 
-p2=fitlm(DASF_final,R_NIR);
-R2_corr=p2.Rsquared.Ordinary;
-plot(DASF_final,R_NIR,'o',DASF_final,f,'-');
-xlabel('DASF')
-ylabel('reflectance-NIR (800-850 [nm])')
-title('Canopy')
-text(0.4,0.35,['R2 =' ' ' num2str(R2_corr)])
-set(gcf,'color','w','Position', [250, 150,600,600]);
- set(gca,'FontSize',16)
- 
-
 p1 = polyfit(LAI_final,R_NIR',1); 
 f = polyval(p1,LAI_final); 
 p2=fitlm(LAI_final,R_NIR);
@@ -296,24 +274,33 @@ text(3,0.35,['R2 =' ' ' num2str(R2_corr)])
 set(gcf,'color','w','Position', [250, 150,600,500]);
  set(gca,'FontSize',16)
  
- p1 = polyfit(Height_final,R_NIR',1); 
-f = polyval(p1,Height_final); 
-p2=fitlm(Height_final,R_NIR);
+ p1 = polyfit(Cover_final,R_NIR',1); 
+f = polyval(p1,Cover_final); 
+p2=fitlm(Cover_final,R_NIR);
 R2_corr=p2.Rsquared.Ordinary;
-plot(Height_final,R_NIR,'o',Height_final,f,'-');
+plot(Cover_final,R_NIR,'o',Cover_final,f,'-');
 xlabel('Height [m/m]')
 ylabel('reflectance-NIR (800-850 [nm])')
 text(1.5,0.35,['R2 =' ' ' num2str(R2_corr)])
 set(gcf,'color','w','Position', [250, 150,600,500]);
  set(gca,'FontSize',16)
 
- 
- %% Export structure removed BRF to R
-DASF_allsoil_removed_canopy = [final_N LAI_final WC_final'];
-save DASF_allsoil_removed_canopy DASF_allsoil_removed_canopy
+  p1 = polyfit(DASF_final,R_NIR,1); 
+f = polyval(p1,DASF_final); 
+p2=fitlm(DASF_final,R_NIR);
+R2_corr=p2.Rsquared.Ordinary;
+plot(DASF_final,R_NIR,'o',DASF_final,f,'-');
+xlabel('DASF')
+ylabel('reflectance-NIR (800-850 [nm])')
+text(0.4,0.35,['R2 =' ' ' num2str(R2_corr)])
+set(gcf,'color','w','Position', [250, 150,600,500]);
+ set(gca,'FontSize',16)
 
-DASF_allsoil_not_removed_canopy = [final_N LAI_final R_final'];
-save DASF_allsoil_not_removed_canopy DASF_allsoil_not_removed_canopy
+ %% Export structure removed BRF to R
+DASF_removed_canopy = [final_N LAI_final WC_final'];
+save DASF_removed_canopy DASF_removed_canopy
+
+
 
 %% check above using prospect leaf BRF
 
@@ -323,7 +310,7 @@ set(gcf,'color','w','Position', [250, 150,600,500]);
  xlabel('R2 values')
  ylabel('Frequency')
 
-plot(w_leaf,WC_all_pnas(:,logical(flag3_pnas)))
+plot(w_plot,WC_all_pnas(:,logical(flag3_pnas)))
 set(gcf,'color','w','Position', [250, 150,600,500]);
  set(gca,'FontSize',16)
  xlabel('Wavelenght [nm]')
@@ -332,32 +319,31 @@ set(gcf,'color','w','Position', [250, 150,600,500]);
 DASF1=DASF_pnas(logical(flag3_pnas));
 boxplot(DASF1)
 
-shrubname1=ShrubName_sel(logical(flag3_pnas));
+PlotName1=PlotName_sel(logical(flag3_pnas));
 LAI1=LAI_Sel(logical(flag3_pnas));
-P1=P_sel(:,logical(flag3_pnas));
+P1=P_sel(logical(flag3_pnas),:);
 N1=N_sel(logical(flag3_pnas));
-Gap1=Gap_sel(logical(flag3_pnas));
+%Gap1=Gap_sel(logical(flag3_pnas));
 WC1=WC_all(:,logical(flag3_pnas));
-R1=canopy_resampled_sel(:,logical(flag3_pnas));
+R1=plot_ref_final_sel(:,logical(flag3_pnas));
 R_nosoil1=C_sel(:,1,logical(flag3_pnas));
-Height1=Height_sel(logical(flag3_pnas));
+Cover1=Cover_sel(logical(flag3_pnas));
 I_Good=find(N1~=-999);
 final_N=N1(I_Good);
-Gap_final=Gap1(I_Good);
+%Gap_final=Gap1(I_Good);
 LAI_final=LAI1(I_Good);
-Height_final=Height1(I_Good);
+Cover_final=Cover1(I_Good);
 WC_final=WC1(:,I_Good);
 R_final=R1(:,I_Good);
 R_nosoil_final=R_nosoil1(:,I_Good);
-P_final=P1(:,I_Good);
+P_final=P1(I_Good,:);
 DASF_final=DASF1(I_Good);
-shrubname_final=shrubname1(I_Good);
+Plotname_final=PlotName1(I_Good);
 
-I_NIR=find(w_leaf>800 & w_leaf<850);
+I_NIR=find(w_plot>800 & w_plot<850);
 WC_NIR= mean(WC_final(I_NIR,:),1);
 R_NIR=mean(R_final(I_NIR,:),1);
 R_nosoil_NIR=mean(R_nosoil_final(I_NIR,:,1));
-
 
 p1 = polyfit(final_N,WC_NIR',1); 
 f = polyval(p1,final_N); 
@@ -381,18 +367,18 @@ text(3,0.35,['R2 =' ' ' num2str(R2_corr)])
 set(gcf,'color','w','Position', [250, 150,600,500]);
  set(gca,'FontSize',16)
  
- p1 = polyfit(Height_final,R_NIR',1); 
-f = polyval(p1,Height_final); 
-p2=fitlm(Height_final,R_NIR);
+ p1 = polyfit(Cover_final,R_NIR',1); 
+f = polyval(p1,Cover_final); 
+p2=fitlm(Cover_final,R_NIR);
 R2_corr=p2.Rsquared.Ordinary;
-plot(Height_final,R_NIR,'o',Height_final,f,'-');
+plot(Cover_final,R_NIR,'o',Cover_final,f,'-');
 xlabel('Height [m/m]')
 ylabel('reflectance-NIR (800-850 [nm])')
 text(1.5,0.35,['R2 =' ' ' num2str(R2_corr)])
 set(gcf,'color','w','Position', [250, 150,600,500]);
  set(gca,'FontSize',16)
 
-  p1 = polyfit(DASF_final,R_NIR,1); 
+p1 = polyfit(DASF_final,R_NIR,1); 
 f = polyval(p1,DASF_final); 
 p2=fitlm(DASF_final,R_NIR);
 R2_corr=p2.Rsquared.Ordinary;
